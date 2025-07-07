@@ -11,6 +11,16 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 """
 
 from pathlib import Path
+import os
+import logging
+from corsheaders.defaults import default_headers
+import dj_database_url
+
+# Настройка логирования
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(levelname)s: %(message)s'
+)
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -19,12 +29,13 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-rw$s6dlz*zpdcyf=rocqmy#85j4f-1%6_%d42^deg4xncp7nw4'
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-rw$s6dlz*zpdcyf=rocqmy#85j4f-1%6_%d42^deg4xncp7nw4')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = os.environ.get('DEBUG', 'False') == 'True'
 
-ALLOWED_HOSTS = []
+# Allowed hosts - берем из переменных окружения или разрешаем localhost
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '*,localhost,127.0.0.1,backend,frontend').split(',')
 
 # Application definition
 
@@ -36,6 +47,7 @@ INSTALLED_APPS = [
     'django.contrib.messages',
     'django.contrib.staticfiles',
     'rest_framework',
+    'corsheaders',
     'cafes',
 ]
 
@@ -46,18 +58,104 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticatedOrReadOnly',
-    ]
+    ],
+    'DEFAULT_RENDERER_CLASSES': [
+        'rest_framework.renderers.JSONRenderer',
+        'rest_framework.renderers.BrowsableAPIRenderer',
+    ],
+    'EXCEPTION_HANDLER': 'rest_framework.views.exception_handler',
+    # Добавляем пагинацию по умолчанию
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.PageNumberPagination',
+    'PAGE_SIZE': 20
 }
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
+    'cafes.middleware.CustomCsrfMiddleware',
+    'cafes.middleware.MediaFileCacheMiddleware',  # Add caching for media files
+    'cafes.middleware.MediaServeMiddleware',  # Добавляем middleware для обслуживания медиа-файлов
+    'cafes.middleware.StaticFileServeMiddleware',  # Добавляем middleware для обслуживания статических файлов
 ]
+
+# CORS настройки
+CORS_ALLOW_ALL_ORIGINS = DEBUG  # Allow all origins in debug mode
+
+# Always accept credentials
+CORS_ALLOW_CREDENTIALS = True
+
+# Базовые разрешенные хосты из переменных окружения
+CORS_ALLOWED_ORIGINS = os.environ.get('CORS_ALLOWED_ORIGINS', 
+    'http://localhost,http://localhost:3000,http://localhost:80,'
+    'http://127.0.0.1,http://127.0.0.1:3000,http://127.0.0.1:80,'
+    'http://frontend'
+).split(',')
+
+# Add both Docker (port 80) and development (port 3000) environments
+if DEBUG:
+    additional_origins = [
+        # Docker and production (port 80 or no port)
+        'http://localhost', 
+        'http://localhost:80',
+        'http://127.0.0.1',
+        'http://127.0.0.1:80',
+        'http://frontend',
+        
+        # Development environment (port 3000)
+        'http://localhost:3000',
+        'http://localhost:3001',
+        'http://127.0.0.1:3000',
+        'http://127.0.0.1:3001',
+        
+        # Backend server
+        'http://localhost:8000',
+        'http://127.0.0.1:8000',
+    ]
+    for origin in additional_origins:
+        if origin not in CORS_ALLOWED_ORIGINS:
+            CORS_ALLOWED_ORIGINS.append(origin)
+
+# Debug print of allowed origins for troubleshooting
+if DEBUG:
+    print("CORS_ALLOWED_ORIGINS:", CORS_ALLOWED_ORIGINS)
+
+# Ensure consistent CORS behavior with Nginx
+CORS_EXPOSE_HEADERS = ['Content-Type', 'X-CSRFToken', 'Authorization', 'Content-Length', 'Content-Range']
+CORS_ALLOW_METHODS = [
+    'DELETE',
+    'GET',
+    'OPTIONS',
+    'PATCH',
+    'POST',
+    'PUT',
+]
+CORS_ALLOW_HEADERS = list(default_headers) + [
+    'content-disposition',
+    'x-csrftoken',
+    'cache-control',
+    'authorization',
+]
+
+# Динамическое добавление туннельного URL из переменной окружения
+TUNNEL_URL = os.environ.get('TUNNEL_URL', '')
+if TUNNEL_URL and TUNNEL_URL not in CORS_ALLOWED_ORIGINS:
+    CORS_ALLOWED_ORIGINS.append(TUNNEL_URL)
+
+# Для обратной совместимости добавляем известные домены lhr.life (localhost.run)
+LHR_LIFE_DOMAIN = os.environ.get('LHR_LIFE_DOMAIN', 'ec4db675c64c9f.lhr.life')
+if LHR_LIFE_DOMAIN and LHR_LIFE_DOMAIN not in CORS_ALLOWED_ORIGINS:
+    CORS_ALLOWED_ORIGINS.append(f'https://{LHR_LIFE_DOMAIN}')
+
+CORS_PREFLIGHT_MAX_AGE = 86400  # 24 часа
+
+# Дополнительные настройки для развертывания
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 
 ROOT_URLCONF = 'kulcha.urls'
 
@@ -82,16 +180,21 @@ WSGI_APPLICATION = 'kulcha.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/5.1/ref/settings/#databases
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'kulcha_db',
-        'USER': 'kulcha_user',
-        'PASSWORD': 'securepassword',
-        'HOST': 'localhost',
-        'PORT': '5432',
+# Используем PostgreSQL по умолчанию и SQLite как резерв
+# Обработка DATABASE_URL из docker-compose.yml
+database_url = os.environ.get('DATABASE_URL')
+if database_url:
+    DATABASES = {
+        'default': dj_database_url.parse(database_url)
     }
-}
+else:
+    # Резервный вариант - SQLite для разработки
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+        }
+    }
 
 # Password validation
 # https://docs.djangoproject.com/en/5.1/ref/settings/#auth-password-validators
@@ -114,7 +217,7 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/5.1/topics/i18n/
 
-LANGUAGE_CODE = 'en-us'
+LANGUAGE_CODE = 'ru-ru'
 
 TIME_ZONE = 'UTC'
 
@@ -125,9 +228,95 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / 'staticfiles'
+STATICFILES_DIRS = [
+    BASE_DIR / 'static',  # Директория с исходными статическими файлами
+]
+
+# Media files (Uploads)
+MEDIA_URL = '/media/'
+MEDIA_ROOT = BASE_DIR / 'media'
+
+# Media file caching settings
+# Improves performance by setting cache control headers for media files
+MEDIA_CACHE_CONTROL = 'public, max-age=86400'  # Cache media files for 24 hours
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# Logging configuration
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'level': 'DEBUG',
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
+        'file': {
+            'level': 'DEBUG',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(BASE_DIR, 'debug.log'),
+            'formatter': 'verbose',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console', 'file'],
+            'level': 'INFO',
+            'propagate': True,
+        },
+        'django.request': {
+            'handlers': ['console', 'file'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'django.server': {
+            'handlers': ['console', 'file'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+        'cafes': {
+            'handlers': ['console', 'file'],
+            'level': 'DEBUG',
+            'propagate': False,
+        },
+    },
+}
+
+# Настройка для авторизации и сессии
+CSRF_COOKIE_SAMESITE = 'Lax'  # None, Lax, Strict
+SESSION_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_HTTPONLY = False  # False для фронтенд-фреймворков, иначе JS не сможет получить доступ к токену
+SESSION_COOKIE_HTTPONLY = True
+
+# Обеспечение правильной работы CSRF с фронтендом
+CSRF_USE_SESSIONS = False  # Хранить токен в куки, а не в сессиях
+CSRF_COOKIE_NAME = 'csrftoken'  # Стандартное имя для Django
+CSRF_COOKIE_PATH = '/'  # Убедимся что доступен для всех путей
+CSRF_COOKIE_AGE = 60 * 60 * 24 * 7  # Одна неделя в секундах
+CSRF_COOKIE_DOMAIN = None  # Автоматически определять домен
+CSRF_COOKIE_SECURE = False  # False для HTTP в разработке
+CSRF_FAILURE_VIEW = 'django.views.csrf.csrf_failure'
+
+# Отключаем CSRF для разработки (ВРЕМЕННОЕ РЕШЕНИЕ!)
+CSRF_COOKIE_DOMAIN = None
+CSRF_COOKIE_SECURE = False
+CSRF_TRUSTED_ORIGINS = CORS_ALLOWED_ORIGINS
+# Добавим исключения для CSRF защиты в разработке
+CSRF_TRUSTED_ORIGINS = ['http://localhost', 'http://127.0.0.1'] + CORS_ALLOWED_ORIGINS
+CSRF_EXEMPT_PATHS = ['/api/auth/login/', '/api/auth/csrf/']

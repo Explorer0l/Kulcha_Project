@@ -1,0 +1,10 @@
+tunnel: a9bc3336-807b-45d6-9dc0-826fe095c559
+credentials-file: ~/.cloudflared/a9bc3336-807b-45d6-9dc0-826fe095c559.json
+ingress:
+  - hostname: kulcha-test.kulcha.com
+    service: http://localhost:8000
+  - hostname: api.kulcha-test.kulcha.com
+    service: http://localhost:8000
+  - hostname: app.kulcha-test.kulcha.com
+    service: http://localhost:3000
+  - service: http_status:404 

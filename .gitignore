@@ -10,6 +10,14 @@ node_modules
 /build
 /dist
 
+# Фронтенд сборка
+frontend/build/
+frontend/build/static/js/*.js
+frontend/build/static/js/*.js.map
+frontend/build/static/css/*.css
+frontend/build/static/css/*.css.map
+frontend/build/static/media/
+
 # Misc
 .DS_Store
 .env
@@ -22,9 +30,17 @@ node_modules
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+*.log
 
 # IDE
 .idea
 .vscode
 *.swp
-*.swo 
+*.swo
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python 

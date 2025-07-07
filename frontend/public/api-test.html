@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Test Page</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            color: #333;
+        }
+        button {
+            padding: 10px 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        pre {
+            background-color: #f4f4f4;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+        .test-group {
+            margin-bottom: 30px;
+            border: 1px solid #ddd;
+            padding: 15px;
+            border-radius: 5px;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+</head>
+<body>
+    <h1>API Test Page</h1>
+    <p>Используйте эту страницу для тестирования API соединений с различными URL.</p>
+    
+    <div class="test-group">
+        <h2>1. Тест настроек API</h2>
+        <button id="show-api-config">Показать API конфигурацию</button>
+        <pre id="api-config-result">Нажмите кнопку для проверки...</pre>
+    </div>
+
+    <div class="test-group">
+        <h2>2. Тест относительного URL</h2>
+        <button id="test-relative-url">Тест /api/cities/</button>
+        <pre id="relative-url-result">Нажмите кнопку для проверки...</pre>
+    </div>
+
+    <div class="test-group">
+        <h2>3. Тест абсолютного URL (текущий домен)</h2>
+        <button id="test-absolute-url">Тест [origin]/api/cities/</button>
+        <pre id="absolute-url-result">Нажмите кнопку для проверки...</pre>
+    </div>
+
+    <div class="test-group">
+        <h2>4. Тест прямого подключения к бэкенду</h2>
+        <button id="test-backend-direct">Тест backend:8000/api/cities/</button>
+        <pre id="backend-direct-result">Нажмите кнопку для проверки...</pre>
+    </div>
+
+    <div class="test-group">
+        <h2>5. Создать тестовые города (если API работает)</h2>
+        <button id="create-test-cities">Создать тестовые города</button>
+        <pre id="create-cities-result">Нажмите кнопку для проверки...</pre>
+    </div>
+
+    <script>
+        // Отображение текущей конфигурации API
+        document.getElementById('show-api-config').addEventListener('click', function() {
+            const result = document.getElementById('api-config-result');
+            result.textContent = 'Получение конфигурации...';
+            
+            try {
+                const apiConfig = window.API_CONFIG || { API_BASE_URL: 'не определен' };
+                const info = {
+                    'API_BASE_URL': apiConfig.API_BASE_URL,
+                    'Текущий origin': window.location.origin,
+                    'Текущий hostname': window.location.hostname,
+                    'Полный URL запроса': window.location.href,
+                    'User Agent': navigator.userAgent,
+                    'Дата и время': new Date().toISOString()
+                };
+                
+                result.textContent = JSON.stringify(info, null, 2);
+            } catch (error) {
+                result.textContent = `Ошибка: ${error.message}`;
+            }
+        });
+
+        // Тест относительного URL
+        document.getElementById('test-relative-url').addEventListener('click', async function() {
+            const result = document.getElementById('relative-url-result');
+            result.textContent = 'Выполнение запроса...';
+            
+            try {
+                const response = await axios.get('/api/cities/', {
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const statusInfo = `Статус: ${response.status} ${response.statusText}`;
+                
+                result.textContent = `${statusInfo}\n\nОтвет:\n${JSON.stringify(response.data, null, 2)}`;
+            } catch (error) {
+                const statusInfo = error.response 
+                    ? `Статус: ${error.response.status} ${error.response.statusText}` 
+                    : 'Ошибка сети';
+                    
+                result.textContent = `${statusInfo}\n\nОшибка: ${error.message}`;
+            }
+        });
+
+        // Тест абсолютного URL
+        document.getElementById('test-absolute-url').addEventListener('click', async function() {
+            const result = document.getElementById('absolute-url-result');
+            result.textContent = 'Выполнение запроса...';
+            
+            try {
+                const absoluteUrl = `${window.location.origin}/api/cities/`;
+                const response = await axios.get(absoluteUrl, {
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const statusInfo = `URL: ${absoluteUrl}\nСтатус: ${response.status} ${response.statusText}`;
+                result.textContent = `${statusInfo}\n\nОтвет:\n${JSON.stringify(response.data, null, 2)}`;
+            } catch (error) {
+                const absoluteUrl = `${window.location.origin}/api/cities/`;
+                const statusInfo = error.response 
+                    ? `URL: ${absoluteUrl}\nСтатус: ${error.response.status} ${error.response.statusText}` 
+                    : `URL: ${absoluteUrl}\nОшибка сети`;
+                    
+                result.textContent = `${statusInfo}\n\nОшибка: ${error.message}`;
+            }
+        });
+
+        // Тест прямого подключения к бэкенду
+        document.getElementById('test-backend-direct').addEventListener('click', async function() {
+            const result = document.getElementById('backend-direct-result');
+            result.textContent = 'Выполнение запроса...';
+            
+            try {
+                // Пробуем несколько URL для прямого подключения
+                const urls = [
+                    'http://backend:8000/api/cities/',
+                    'http://localhost:8000/api/cities/',
+                    'http://127.0.0.1:8000/api/cities/'
+                ];
+                
+                let success = false;
+                let statusInfo = '';
+                let responseData = null;
+                
+                for (const url of urls) {
+                    try {
+                        const response = await axios.get(url, {
+                            headers: {
+                                'Accept': 'application/json',
+                                'Content-Type': 'application/json'
+                            }
+                        });
+                        
+                        statusInfo += `URL: ${url}\nСтатус: ${response.status} ${response.statusText}\n\n`;
+                        responseData = response.data;
+                        success = true;
+                        break;
+                    } catch (error) {
+                        const errorStatus = error.response ? 
+                            `${error.response.status} ${error.response.statusText}` : 
+                            'Ошибка сети';
+                        statusInfo += `URL: ${url}\nСтатус: ${errorStatus}\nОшибка: ${error.message}\n\n`;
+                    }
+                }
+                
+                if (success) {
+                    result.textContent = `${statusInfo}Ответ:\n${JSON.stringify(responseData, null, 2)}`;
+                } else {
+                    result.textContent = `${statusInfo}Не удалось подключиться ни к одному URL напрямую`;
+                }
+            } catch (error) {
+                result.textContent = `Ошибка: ${error.message}`;
+            }
+        });
+
+        // Создание тестовых городов
+        document.getElementById('create-test-cities').addEventListener('click', async function() {
+            const result = document.getElementById('create-cities-result');
+            result.textContent = 'Создание тестовых городов...';
+            
+            const testCities = [
+                { name: 'Москва' },
+                { name: 'Санкт-Петербург' },
+                { name: 'Новосибирск' },
+                { name: 'Екатеринбург' },
+                { name: 'Казань' }
+            ];
+            
+            try {
+                const url = '/api/cities/';
+                let createdCities = [];
+                
+                for (const city of testCities) {
+                    try {
+                        const response = await axios.post(url, city, {
+                            headers: {
+                                'Accept': 'application/json',
+                                'Content-Type': 'application/json'
+                            }
+                        });
+                        
+                        createdCities.push(response.data);
+                    } catch (error) {
+                        const errorStatus = error.response ? 
+                            `${error.response.status} ${error.response.statusText}` : 
+                            'Ошибка сети';
+                        result.textContent += `\nОшибка создания города ${city.name}: ${errorStatus}`;
+                    }
+                }
+                
+                // Проверяем созданные города
+                try {
+                    const checkResponse = await axios.get(url, {
+                        headers: {
+                            'Accept': 'application/json',
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    
+                    const allCities = checkResponse.data;
+                    result.textContent = `Создано ${createdCities.length} городов.\n\nВсе города в базе (${allCities.length}):\n${JSON.stringify(allCities, null, 2)}`;
+                } catch (error) {
+                    result.textContent = `Создано ${createdCities.length} городов, но не удалось получить полный список: ${error.message}`;
+                }
+            } catch (error) {
+                result.textContent = `Ошибка: ${error.message}`;
+            }
+        });
+    </script>
+</body>
+</html> 
